@@ -1,3 +1,22 @@
+## New features in the `new-version` branch
+
+This branch extends the original LeHaMoC implementation with two main updates:
+
+1. **Flexible particle injection spectra**
+
+   The particle injection function now supports:
+   - single power-law injection,
+   - single power-law injection with an exponential cutoff,
+   - broken power-law injection,
+   - broken power-law injection with an exponential cutoff.
+
+   The injection shape is controlled by the parameters `PL_inj`, `g_br_log10`, `p1`, and `p2`.
+
+2. **Klein--Nishina cooling for pairs**
+
+   The inverse-Compton cooling of electron--positron pairs now includes Klein--Nishina effects. The implementation follows the approximations of Moderski et al. (2005) (see Eq. A8), which account for the suppression of inverse-Compton cooling when scatterings enter the Klein--Nishina regime.
+
+
 # LeHaMoC: Leptonic-Hadronic Modeling Code for High-Energy Astrophysical Sources
 
 LeHaMoC is a leptohadronic modeling code designed for simulating high-energy astrophysical sources. It simulates the behavior of relativistic pairs protons interacting with magnetic fields and photons in a spherical region. The physical processes that are included are:
@@ -73,7 +92,7 @@ To configure the LeHaMoC simulation, you can customize various parameters in the
 
 3. **step_alg**: Step size used in the algorithm, expressed in units of the initial radius over the speed of light (R0/c).
 
-4. **PL_inj**: Power law injection flag (1 to include, 0 to use distribution with exponential cut-offs).
+4. **PL_inj**: Injection-shape flag. If `PL_inj = 1`, the injected particle spectrum is a pure power law or broken power law. If `PL_inj != 1`, an exponential cutoff is included.
 
 5. **g_min_el**: Minimum Lorentz factor of electrons on the grid.
 
@@ -81,97 +100,105 @@ To configure the LeHaMoC simulation, you can customize various parameters in the
 
 7. **g_el_PL_min**: Minimum Lorentz factor of power-law electrons.
 
-8. **g_el_PL_max**: Maximum Lorentz factor of power-law electrons.
+8. **g_el_br**: Logarithm of the break Lorentz factor of the injected electron distribution. If `g_el_br = 0`, the code uses a single power law from "g_el_PL_min" to "g_el_PL_max". If `g_el_br != 0`, the code uses a broken power law with break Lorentz factor `gamma_br_el = 10**g_el_br`.
 
-9. **grid_g_el**: Number of grid points between g_min_el and g_max_el.
+9. **g_el_PL_max**: Maximum Lorentz factor of power-law electrons.
 
-10. **g_min_pr**: Minimum Lorentz factor of protons on the grid.
+10. **grid_g_el**: Number of grid points between g_min_el and g_max_el.
 
-11. **g_max_pr**: Maximum Lorentz factor of protons on the grid.
+11. **g_min_pr**: Minimum Lorentz factor of protons on the grid.
 
-12. **g_pr_PL_min**: Minimum Lorentz factor of power-law protons.
+12. **g_max_pr**: Maximum Lorentz factor of protons on the grid.
 
-13. **g_pr_PL_max**: Maximum Lorentz factor of power-law protons.
+13. **g_pr_PL_min**: Minimum Lorentz factor of power-law protons.
 
-14. **grid_g_pr**: Number of grid points between g_min_pr and g_max_pr.
+14. **g_pr_br**: Logarithm of the break Lorentz factor of the injected particle distribution for protons. If `g_pr_br = 0`, the code uses a single power law from "g_pr_PL_min" to "g_pr_PL_max". If `g__pr_br != 0`, the code uses a broken power law with break Lorentz factor `gamma_br_pr = 10**g_pr_br`.
 
-15. **grid_nu**: Number of grid points for photons' frequency.
+15. **g_pr_PL_max**: Maximum Lorentz factor of power-law protons.
 
-16. **p_el**: Power-law index of the electron distribution.
+16.  **grid_g_pr**: Number of grid points between g_min_pr and g_max_pr.
 
-17. **L_el**: Luminosity of electrons in erg s^{-1}.
+17.  **grid_nu**: Number of grid points for photons' frequency.
 
-18. **p_pr**: Power-law index of the proton distribution.
+18. **p_el_1**: Spectral index for the electron distribution below the break. For a single power law, this is the injection spectral index.
 
-19. **L_pr**: Luminosity of protons in erg s^{-1}.
+19. **p_el_2**:: Spectral index above the break. This parameter is used only when `g_el_br != 0`.
 
-20. **Vexp**: Expansion velocity in units of the speed of light (c).
+20. **L_el**: Luminosity of electrons in erg s^{-1}.
 
-21. **R0**: Common logarithm of the initial radius of the spherical blob in centimeters (cm).
+21. **p_pr_1**: Spectral index for the proton distribution below the break. For a single power law, this is the injection spectral index.
 
-22. **B0**: Magnetic field intensity in Gauss (G).
+22. **p_pr_2**: Spectral index for the proton distribution above the break. This parameter is used only when `g_pr_br != 0`.
 
-23. **m**: Power-law index of the magnetic field due to source expansion.
+23. **L_pr**: Luminosity of protons in erg s^{-1}.
 
-24. **delta**: Doppler factor.
+24. **Vexp**: Expansion velocity in units of the speed of light (c).
 
-25. **inj_flag**: Electron injection profile (1 for continuous, 0 for instantaneous).
+25. **R0**: Common logarithm of the initial radius of the spherical blob in centimeters (cm).
 
-26. **Ad_l_flag**: Adiabatic losses flag (1 to include, 0 to exclude).
+26. **B0**: Magnetic field intensity in Gauss (G).
 
-27. **Syn_l_flag**: Synchrotron losses flag (1 to include, 0 to exclude).
+27. **m**: Power-law index of the magnetic field due to source expansion.
 
-28. **Syn_emis_flag**: Synchrotron emission flag (1 to include, 0 to exclude).
+28. **delta**: Doppler factor.
 
-29. **IC_l_flag**: Inverse Compton scattering losses flag (1 to include, 0 to exclude).
+29. **inj_flag**: Electron injection profile (1 for continuous, 0 for instantaneous).
 
-30. **IC_emis_flag**: Inverse Compton scattering emission flag (1 to include, 0 to exclude).
+30. **Ad_l_flag**: Adiabatic losses flag (1 to include, 0 to exclude).
 
-31. **SSA_l_flag**: Synchrotron Self-absorption losses flag (1 to include, 0 to exclude).
+31. **Syn_l_flag**: Synchrotron losses flag (1 to include, 0 to exclude).
 
-32. **gg_flag**: Gamma-gamma absorption-emission flag (1 to include, 0 to exclude).
+32. **Syn_emis_flag**: Synchrotron emission flag (1 to include, 0 to exclude).
 
-33. **pg_pi_l_flag**: Photopion losses flag (1 to include, 0 to exclude).
+33. **IC_l_flag**: Inverse Compton scattering losses flag (1 to include, 0 to exclude).
 
-34. **pg_pi_emis_flag**: Photopion emission flag (1 to include, 0 to exclude).
+34. **IC_emis_flag**: Inverse Compton scattering emission flag (1 to include, 0 to exclude).
 
-35. **pg_BH_l_flag**: Bethe-Heitler losses flag (1 to include, 0 to exclude).
+35. **SSA_l_flag**: Synchrotron Self-absorption losses flag (1 to include, 0 to exclude).
 
-36. **pg_BH_emis_flag**: Bethe-Heitler losses flag (1 to include, 0 to exclude).
+36. **gg_flag**: Gamma-gamma absorption-emission flag (1 to include, 0 to exclude).
 
-37. **n_H**: Number density of cold protons in #/cm^{3}.
+37. **pg_pi_l_flag**: Photopion losses flag (1 to include, 0 to exclude).
 
-38. **pp_l_flag**: Proton-proton (pp) losses flag (1 to include, 0 to exclude).
+38. **pg_pi_emis_flag**: Photopion emission flag (1 to include, 0 to exclude).
 
-39. **pp_ee_emis_flag**: Pairs emission from pp interactions flag (1 to include, 0 to exclude).
+39. **pg_BH_l_flag**: Bethe-Heitler losses flag (1 to include, 0 to exclude).
 
-40. **pp_g_emis_flag**: Photon emission from pp interactions flag (1 to include, 0 to exclude).
+40. **pg_BH_emis_flag**: Bethe-Heitler losses flag (1 to include, 0 to exclude).
 
-41. **pp_nu_emis_flag**: Neutrino emission from pp interactions flag (1 to include, 0 to exclude).
+41. **n_H**: Number density of cold protons in #/cm^{3}.
 
-42. **neutrino_flag**: Neutrino flag for photopion interactions flag (1 to include, 0 to exclude).
+42. **pp_l_flag**: Proton-proton (pp) losses flag (1 to include, 0 to exclude).
 
-43. **esc_flag_el**: Escape of pairs flag (1 to include, 0 to exclude).
+43. **pp_ee_emis_flag**: Pairs emission from pp interactions flag (1 to include, 0 to exclude).
 
-44. **esc_flag_pr**: Escape of protons flag (1 to include, 0 to exclude).
+44. **pp_g_emis_flag**: Photon emission from pp interactions flag (1 to include, 0 to exclude).
 
-45. **BB_flag**: Black body flag (1 to include, 0 to exclude).
+45. **pp_nu_emis_flag**: Neutrino emission from pp interactions flag (1 to include, 0 to exclude).
 
-46. **BB_temperature**: Common logarithm of the Black body temperature in Kelvin (K).
+46. **neutrino_flag**: Neutrino flag for photopion interactions flag (1 to include, 0 to exclude).
 
-47. **GB_ext**: External Grey Body photon field energy density in erg cm^{-3} (BB_flag = 1 to include).
+47. **esc_flag_el**: Escape of pairs flag (1 to include, 0 to exclude).
 
-48. **PL_flag**: External power-law photon field flag.
+48. **esc_flag_pr**: Escape of protons flag (1 to include, 0 to exclude).
 
-49. **dE_dV_ph**: Energy density in erg cm^{-3} of the external power-law photon field.
+49. **BB_flag**: Black body flag (1 to include, 0 to exclude).
 
-50. **nu_min_ph**: Minimum frequency of the power-law photon field.
+50. **BB_temperature**: Common logarithm of the Black body temperature in Kelvin (K).
 
-51. **nu_max_ph**: Maximum frequency of the power-law photon field.
+51. **GB_ext**: External Grey Body photon field energy density in erg cm^{-3} (BB_flag = 1 to include).
 
-52. **s_ph**: Power-law index of the power-law photon field.
+52. **PL_flag**: External power-law photon field flag.
 
-53. **User_ph**: External user photon field flag (1 to include, 0 to exclude). If included, provide a .txt file named 'Photons_spec_user.txt' with columns (nu[Hz],dN/dVdnu[cm^{-3}Hz^{-1}]).
+53. **dE_dV_ph**: Energy density in erg cm^{-3} of the external power-law photon field.
+
+54. **nu_min_ph**: Minimum frequency of the power-law photon field.
+
+55. **nu_max_ph**: Maximum frequency of the power-law photon field.
+
+56. **s_ph**: Power-law index of the power-law photon field.
+
+57. **User_ph**: External user photon field flag (1 to include, 0 to exclude). If included, provide a .txt file named 'Photons_spec_user.txt' with columns (nu[Hz],dN/dVdnu[cm^{-3}Hz^{-1}]).
 
 Run the LeHaMoC.py code using a compatible Python interpreter. Make sure to have all necessary dependencies installed. Example:
 python LeHaMoC.py Parameters_Test.txt
