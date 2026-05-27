@@ -1,6 +1,6 @@
 ## New features in the `new-version` branch
 
-This branch extends the original LeHaMoC implementation with two main updates:
+This branch extends the original LeHaMoC implementation with the following updates:
 
 1. **Flexible particle injection spectra**
 
@@ -33,7 +33,7 @@ This branch extends the original LeHaMoC implementation with two main updates:
 
    These files store interpolation objects and grids used for the photon, electron/positron, and neutrino yields from photomeson interactions.
 
-5. **Indicative runtime**
+# Indicative runtime
 On a MacBook Air with Apple M4 and 32 GB RAM, typical runtimes should be:
 
 - leptonic simulations: `0.2--0.3 s`
