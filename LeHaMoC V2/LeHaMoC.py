@@ -312,6 +312,7 @@ g2_pr = g_pr ** 2.
 with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4,'w') as f4:
     for i in tqdm(range(int(time_end/step_alg)),desc="Progress..."):
         time_real += dt    
+        Radius = f.R(R0, time_real, time_init, Vexp)
         V_t = f.Volume(Radius) 
         M_F = f.B(B0,R0,Radius,m)
         if V_t > V_R0:
