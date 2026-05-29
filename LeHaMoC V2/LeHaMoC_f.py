@@ -404,7 +404,7 @@ def Q_ee_f(nu_target, photons_target, nu_ic, photons_IC, g, R0):
     factor = c*sigmaT*m_el*c**2/h
     return Q_ee_temp * factor
 
-#computes energy density of target photons for ICS scattering in Thomson limit        
+#computes energy density of target photons for ICS scattering      
 @njit(cache=True, fastmath=True)
 def U_ph_KN(g, nu_target, photons_target):
     m_el_c2 = m_el*c**2
