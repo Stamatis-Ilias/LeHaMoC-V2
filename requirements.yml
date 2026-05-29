@@ -1,19 +1,16 @@
 # requirements.yml
 
-python: 3.9.12
+python: 3.12.12
 packages:
-  - name: numpy
-    version: 1.21.5
-  - name: astropy
-    version: 5.0.4
-  - name: matplotlib
-    version: 3.5.1
-  - name: pandas
-    version: 1.4.2
-  - name: tqdm
-    version: 4.64.0
-  - name: shapely
-    version: 1.7.1
-  - name: scipy
-    version: 1.7.3
+  numpy==1.26.4
+  scipy==1.13.1
+  pandas==2.3.3
+  matplotlib==3.10.7
+  astropy==7.1.1
+  numba==0.62.1
+  shapely==2.1.2
+  tqdm==4.67.1
+  ebltable==0.6.3
+  emcee==3.1.6
+  corner==2.2.3
 

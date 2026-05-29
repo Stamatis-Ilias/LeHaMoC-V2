@@ -1,6 +1,6 @@
 ## New features in the `new-version` branch
 
-This branch extends the original LeHaMoC implementation with two main updates:
+This branch extends the original LeHaMoC implementation with the following updates:
 
 1. **Flexible particle injection spectra**
 
@@ -16,6 +16,30 @@ This branch extends the original LeHaMoC implementation with two main updates:
 
    The inverse-Compton cooling of electron--positron pairs now includes Klein--Nishina effects. The implementation follows the approximations of Moderski et al. (2005) (see Eq. A8), which account for the suppression of inverse-Compton cooling when scatterings enter the Klein--Nishina regime.
 
+3. **Numba acceleration**
+   The new version uses `numba.njit` to accelerate several numerically intensive functions. The `@njit` decorator compiles selected Python functions in Numba's no-Python mode, reducing Python interpreter overhead and making loop-heavy calculations significantly faster.
+
+4. **Tabulated photomeson interaction kernels**
+   The new version also includes pre-tabulated interpolation functions for photomeson interactions.  These are loaded from `.pkl` files using Python's `pickle` module at runtime.
+   The tabulated files are:
+   
+   - `interpolated_data_f_2g.pkl`
+   - `interpolated_data_f_e_p.pkl`
+   - `interpolated_data_f_e_m.pkl`
+   - `interpolated_data_f_b_nu_mu.pkl`
+   - `interpolated_data_f_b_nu_e.pkl`
+   - `interpolated_data_f_nu_mu.pkl`
+   - `interpolated_data_f_nu_e.pkl`
+
+   These files store interpolation objects and grids used for the photon, electron/positron, and neutrino yields from photomeson interactions.
+
+# Indicative runtime
+On a MacBook Air with Apple M4 and 32 GB RAM, typical runtimes should be:
+
+- leptonic simulations: `0.2--0.3 s`
+- full leptohadronic simulations: `~10 s`
+
+The exact runtime depends on the selected processes, grid resolution, time stepping, and hardware.
 
 # LeHaMoC: Leptonic-Hadronic Modeling Code for High-Energy Astrophysical Sources
 
