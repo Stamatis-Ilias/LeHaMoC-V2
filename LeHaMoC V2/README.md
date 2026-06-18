@@ -33,6 +33,8 @@ This branch extends the original LeHaMoC implementation with the following updat
 
    These files store interpolation objects and grids used for the photon, electron/positron, and neutrino yields from photomeson interactions.
 
+5. We have modified the energy losses term for Synchrotron and IC by changing ~γ^2 -> γ^2-1
+
 # Indicative runtime
 On a MacBook Air with Apple M4 and 32 GB RAM, typical runtimes should be:
 
