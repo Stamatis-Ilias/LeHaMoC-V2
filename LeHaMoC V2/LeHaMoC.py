@@ -308,15 +308,12 @@ g13_el = g_el ** (1./3.)
 g2_el = g_el ** 2.
 g13_pr = g_pr ** (1./3.)
 g2_pr = g_pr ** 2.
-
 # Solution of the PDEs
 with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4,'w') as f4:
     for i in tqdm(range(int(time_end/step_alg)),desc="Progress..."):
-        time_real += dt  
-        Radius = f.R(R0, time_real, time_init, Vexp)
+        time_real += dt    
         V_t = f.Volume(Radius) 
         M_F = f.B(B0,R0,Radius,m)
-        
         if V_t > V_R0:
             el_inj = f.inj_spectrum(V_t, g_el, index_PL_min_el, index_PL_max_el, p_el1, L_el, m_el, PL_inj, g_el_br, p_el2)
             pr_inj = f.inj_spectrum(V_t, g_pr, index_PL_min_pr, index_PL_max_pr, p_pr1, L_pr, m_pr, PL_inj, g_pr_br, p_pr2)  
@@ -398,7 +395,7 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             Q_pg_pi = np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,np.array(photons),nu_tot,"e+")[1:-1],nan=0.0)+np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,np.array(photons),nu_tot,"e-")[1:-1],nan=0.)
             Q_pg_g = np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,photons,nu_tot,"2_g")[1:-1],nan=0.0) 
             if neutrino_flag == 1.:
-                Q_pg_nu = np.multiply(f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"bar_nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_e")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"bar_nu_e"),dt)[1:-1]    
+                Q_pg_nu = np.multiply(f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"\bar_nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_e")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"\bar_nu_e"),dt)[1:-1]    
             else:
                 Q_pg_nu = np.zeros(len(nu_nu)-2)
         else:
@@ -425,21 +422,22 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             S_ij = N_el[1:-1]+(Q_ee+Q_pg_pi+Q_pg_BH+Q_pp_ee)*dt*V_t
         N_el[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)    
         dN_el_dVdg_el = np.array(N_el/V_t)
-        
         if Syn_emis_flag == 1.:
+            # Q_Syn_el = np.array([f.Q_syn_space(dN_el_dVdg_el,M_F,nu_syn[nu_ind],a_cr_el,C_syn_el,g_el) for nu_ind in range(1,len(nu_syn)-1)]) 
+            # Q_Syn_pr = np.array([f.Q_syn_space(dN_pr_dVdg_pr,M_F,nu_syn[nu_ind],a_cr_pr,C_syn_pr,g_pr) for nu_ind in range(1,len(nu_syn)-1)]) 
             Q_Syn_el = f.Q_syn_space(dN_el_dVdg_el, M_F, nu_syn, a_cr_el, C_syn_el, np.log(g_el), g13_el, g2_el)
             Q_Syn_pr = f.Q_syn_space(dN_pr_dVdg_pr, M_F, nu_syn, a_cr_pr, C_syn_pr, np.log(g_pr), g13_pr, g2_pr)
         else: 
             Q_Syn_el = Q_Syn_pr = np.zeros(len(nu_syn)-2)
-        
         if IC_emis_flag == 1.:
             Q_IC = f.Q_IC(dN_el_dVdg_el, g_el, nu_op, photons, nu_tot)
+
         else:
             Q_IC = np.zeros(len(nu_op)-2)  
-        
         if SSA_l_flag == 1.:
             aSSA_space_syn = -np.abs(f.aSSA(dN_el_dVdg_el, M_F, nu_syn, g_el, dg_l_el))
             aSSA_space_op = -np.abs(f.aSSA(dN_el_dVdg_el, M_F, nu_op, g_el, dg_l_el))
+
         else:
             aSSA_space_syn = np.zeros(len(nu_syn)-2) 
             aSSA_space_op = np.zeros(len(nu_op)-2)   
@@ -464,8 +462,9 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         V2 = 1.+dt*(c/Radius+dnudt_ad_op_m-aSSA_space_op*c+a_gg_f_op*c)
         V3 = -dt*dnudt_ad_op_p
         S_ij = photons_op[1:-1]+(Q_IC+Q_pg_g+Q_pp_g)*dt*V_t
+        
         photons_op[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
-        photons = f.photons_tot(nu_syn,nu_bb,photons_syn,nu_op,photons_op,nu_tot,dN_dVdnu_BB*f.Volume(Radius),dN_dVdnu_pl*f.Volume(Radius),dN_dVdnu_user*f.Volume(Radius))/f.Volume(Radius) 
+        photons = f.photons_tot(nu_syn,nu_bb,photons_syn,nu_op,photons_op,nu_tot,dN_dVdnu_BB*f.Volume(Radius),dN_dVdnu_pl*f.Volume(Radius),dN_dVdnu_user*f.Volume(Radius))/f.Volume(Radius)  
         photons = np.nan_to_num(photons, nan=0.0)
         if gg_flag == 0.:
             a_gg_f_op = np.zeros(len(nu_op)-2)
@@ -494,6 +493,7 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         interv += 1   
         if day_counter < time_real:            
             day_counter = day_counter+step_alg*R0/c
+
             Spec_temp_tot = np.multiply(photons,h*nu_tot**2.)*4.*np.pi/3.*Radius**2.*c  
             pr1 = [[str(el_list) for el_list in np.log10(g_el) ],[str(el_list) for el_list in np.log10(dN_el_dVdg_el) ]]
             pr2 = [[str(el_list) for el_list in np.log10(nu_tot) ],[str(el_list) for el_list in np.log10(Spec_temp_tot) ]]

@@ -231,26 +231,23 @@ def inj_spectrum(V_R0, g, index_min, index_max, p1, L_log10, mass, PL_inj, g_br_
             inj[index_min:] = L/np.trapz(mass*c**2.*g[index_min:]**(-p1+2.)*np.exp(-g[index_min:]/g_cut),np.log(g[index_min:]))*g[index_min:]**(-p1) * np.exp(-g[index_min:]/g[index_max])/V_R0
     return inj
     
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def interp_log_numba(x, xp, fp):
-    result = np.empty(x.shape, dtype=np.float64)
-    n = len(xp)
+    result = np.empty_like(x)
     for i in range(len(x)):
         xi = x[i]
-        if xi <= xp[0]:
-            result[i] = fp[0]
-            continue
-        if xi >= xp[n - 1]:
-            result[i] = fp[n - 1]
-            continue
         idx = np.searchsorted(xp, xi) - 1
+        if idx < 0:
+            idx = 0
+        elif idx >= len(xp) - 1:
+            idx = len(xp) - 2
         x0 = xp[idx]
         x1 = xp[idx + 1]
         y0 = fp[idx]
         y1 = fp[idx + 1]
         result[i] = y0 + (xi - x0) * (y1 - y0) / (x1 - x0)
-
     return result
+
 @njit(cache=True, fastmath=True)
 def trapz_log_numba(y, x):
     s = 0.0
@@ -368,7 +365,7 @@ def a_gg(nu_ic, nu_target, photons_target):
             log_x_space = np.log(x_space)
             t_gg_m[i] = trapz_log_numba(integrand, log_x_space)
         else: t_gg_m[i] = 0.0
-    t_gg_m = np.nan_to_num(t_gg_m,nan=0.)
+        t_gg_m = np.nan_to_num(t_gg_m,nan=0.)
     return t_gg_m
             
 #Pair creation from gamma gamma absorption dN/dVdtdg (Eq. 57 in Mastichiadis A., Kirk J. G., 1995, A\&A, 295, 613)
@@ -406,17 +403,37 @@ def Q_ee_f(nu_target, photons_target, nu_ic, photons_IC, g, R0):
             Q_ee_temp[i] = 0.0
     factor = c*sigmaT*m_el*c**2/h
     return Q_ee_temp * factor
-    
-#computes energy density of target photons for ICS scattering
+
+#computes energy density of target photons for ICS scattering in Thomson limit        
 @njit(cache=True, fastmath=True)
 def U_ph_KN(g, nu_target, photons_target):
-    m_el_c2 = m_el * c**2
+    m_el_c2 = m_el*c**2
     U_ph_tot = np.empty(len(g))
     for i in range(len(g)):
-        b = 4.0 * g[i] * h * nu_target / m_el_c2
-        integrand = (photons_target * h * nu_target * fKN_exact(b))
-        U_ph_tot[i] = trapz_log_numba(integrand * nu_target, np.log(nu_target))
+        integrand = photons_target*(h*nu_target)*fKN_exact(4*g[i]*h*nu_target/m_el_c2)
+        U_ph_tot[i] = trapz_log_numba(integrand*nu_target, np.log(nu_target))    
     return U_ph_tot
+
+    
+@njit(cache=True, fastmath=True)
+def U_ph_f(g, nu_target, photons_target, R):
+    U_ph_temp = np.empty(len(g))
+    m_el_c2 = m_el*c**2
+    U_ph_tot = m_el_c2/(sigmaT*R)*trapz_log_numba(nu_target[:-1]*photons_target[:-1]*(sigmaT*R*m_el_c2/h),nu_target[:-1])
+    for i in range(len(g)):
+        l_f = g[i]
+        nu_T = 3.*m_el_c2/(4.*h*l_f)
+        if nu_T < nu_target[-1]:
+            nu_temp = np.logspace(np.log10(nu_target[0]), np.log10(nu_T), 50)
+            # Interpolate photons_temp
+            photons_temp = 10**interp_log_numba(np.log10(nu_temp),np.log10(nu_target),np.log10(photons_target))
+            photons_temp = np.nan_to_num(photons_temp, nan=0.0)
+            n_d_targ = h*nu_temp/m_el_c2
+            integrand = n_d_targ*photons_temp*(sigmaT*R*m_el_c2/h)
+            U_ph_temp[i] = m_el_c2/(sigmaT*R)*trapz_log_numba(integrand, n_d_targ)
+        else:
+            U_ph_temp[i] = U_ph_tot
+    return U_ph_temp
 
 @njit(cache=True, fastmath=True)
 def li2_series_pos(x, n=200):
@@ -438,6 +455,7 @@ def li2_series_minus_z(z, n=200):
         s += p / (k * k)
     return s
 
+
 @njit(cache=True, fastmath=True)
 def Li2_minus_z(z):
     if z < 1.0:
@@ -448,6 +466,7 @@ def Li2_minus_z(z):
     else:
         invz = 1.0 / z
         return (-np.pi**2 / 6.0  - 0.5 * np.log(z)**2 - li2_series_minus_z(invz))
+
 
 @njit(cache=True, fastmath=True)
 def g_KN(b):
@@ -469,8 +488,33 @@ def fKN_exact(b):
     return out
 
 @njit(cache=True, fastmath=True)
+def U_ph_KN(g, nu_target, photons_target):
+    m_el_c2 = m_el * c**2
+    U_ph_tot = np.empty(len(g))
+    for i in range(len(g)):
+        b = 4.0 * g[i] * h * nu_target / m_el_c2
+        integrand = (photons_target * h * nu_target * fKN_exact(b))
+        U_ph_tot[i] = trapz_log_numba(integrand * nu_target, np.log(nu_target))
+    return U_ph_tot
+
+@njit(cache=True, fastmath=True)
 def f_kn_moderski(b):
     return (1.0 + b)**(-1.5)
+
+@njit(cache=True, fastmath=True)
+def U_ph_KN_fast(g, nu_target, photons_target):
+    m_el_c2 = m_el * c**2
+    eps0 = h * nu_target / m_el_c2
+    ueps = photons_target * h * nu_target   # energy density per frequency bin, as in your convention
+
+    out = np.empty(len(g))
+    lognu = np.log(nu_target)
+
+    for i in range(len(g)):
+        b = 4.0 * g[i] * eps0
+        integrand = ueps * f_kn_moderski(b)
+        out[i] = trapz_log_numba(integrand * nu_target, lognu)
+    return out
     
 @njit(cache=True, fastmath=True)
 def dg_dt_BH(g_pr, nu, photons, ln_k_i, ln_fk_i):
@@ -518,7 +562,7 @@ def dg_dt_pg_approx(g_pr, nu, photons, E_th=145e6 * eV):
             dg_dt_pg[idx] = 0.0
     return dg_dt_pg
 
-@njit(parallel=True, cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def dg_dt_pg(g_pr, nu, photons,E_th=145.*10**6.*eV):
     C_pion = 5.*10**(-31.)*c
     h_nu = h*nu
@@ -547,60 +591,30 @@ def dg_dt_pg(g_pr, nu, photons,E_th=145.*10**6.*eV):
                     int_pg_losses[idx] = 0.
             dg_dt_pg[idx_g] = (1./(g_p)*trapz_log_numba(Cross_Section_pg_int*kp_pg_int*int_pg_losses*ε_bar_space**2.,np.log(ε_bar_space)))
     return dg_dt_pg*C_pion
-    
-@njit(cache=True, fastmath=True)
-def interp2d_pg_scalar(x_log, eta_log, x_grid, eta_grid, Z_channel):
-    """
-    Bilinear interpolation for one photomeson kernel table.
-    x_log      = log10(x)
-    eta_log    = log10(eta)
-    x_grid     = x_l from pickle
-    eta_grid   = y_l from pickle
-    Z_channel  = one table, e.g. Z_2g, Z_e_m, Z_e_p, Z_nu_mu, ...
-    """
 
-    # Find x-bin
-    if x_log <= x_grid[0]:
-        ix = 0
-        tx = 0.0
-    elif x_log >= x_grid[x_grid.size - 1]:
-        ix = x_grid.size - 2
-        tx = 1.0
+def Phi_g_mod(eta_l, x, flag_product):
+    x_log10 = np.array([np.log10(x)])  # Shape (1,)
+    eta_log10 = np.log10(eta_l)        # Shape (N,)
+    if flag_product == "2_g":
+        Z = f_2g(x_log10, eta_log10)   # Z has shape (N, 1)
+    elif flag_product == "e-":
+        Z = f_e_m(x_log10, eta_log10)
+    elif flag_product == "e+":
+        Z = f_e_p(x_log10, eta_log10)
+    elif flag_product == "\bar_nu_e":
+        Z = f_b_nu_e(x_log10, eta_log10)
+    elif flag_product == "\bar_nu_mu":
+        Z = f_b_nu_mu(x_log10, eta_log10)
+    elif flag_product == "nu_mu":
+        Z = f_nu_mu(x_log10, eta_log10)
+    elif flag_product == "nu_e":
+        Z = f_nu_e(x_log10, eta_log10)        
+    # Include other conditions as needed
     else:
-        ix = np.searchsorted(x_grid, x_log) - 1
-        tx = (x_log - x_grid[ix]) / (x_grid[ix + 1] - x_grid[ix])
+        Z = np.zeros((len(eta_log10), 1))
+    Z_interpolated = Z[:, 0]           # Extract the interpolated values
+    return Z_interpolated
 
-    # Find eta-bin
-    if eta_log <= eta_grid[0]:
-        iy = 0
-        ty = 0.0
-    elif eta_log >= eta_grid[eta_grid.size - 1]:
-        iy = eta_grid.size - 2
-        ty = 1.0
-    else:
-        iy = np.searchsorted(eta_grid, eta_log) - 1
-        ty = (eta_log - eta_grid[iy]) / (eta_grid[iy + 1] - eta_grid[iy])
-
-    # The uploaded tables are shaped as Z[eta_index, x_index]
-    z00 = Z_channel[iy,     ix]
-    z10 = Z_channel[iy,     ix + 1]
-    z01 = Z_channel[iy + 1, ix]
-    z11 = Z_channel[iy + 1, ix + 1]
-    return ((1.0 - tx) * (1.0 - ty) * z00 + tx * (1.0 - ty) * z10 + (1.0 - tx) * ty * z01 + tx * ty * z11)
-
-@njit(cache=True, fastmath=True)
-def Phi_g_mod_numba(eta_l, x, x_grid, eta_grid, Z_channel):
-    """
-    Replacement for:
-        Phi_g_mod(eta_l, x, flag_product)
-    but instead of passing flag_product, you pass the actual Z table.
-    """
-    out = np.empty(eta_l.size)
-    x_log = np.log10(x)
-    for i in range(eta_l.size):
-        eta_log = np.log10(eta_l[i])
-        out[i] = interp2d_pg_scalar(x_log, eta_log, x_grid, eta_grid, Z_channel,)
-    return out
 
 # Emissivities of the secondary particles from Eq. (30) Kelner S.R. and Aharonian F. A. 2009  
 def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,r=0.1458):
@@ -625,7 +639,7 @@ def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,
                     nu_target_temp = eta_space*c_temp/h
                     photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
                     photons_targ_temp = np.nan_to_num(photons_targ_temp, nan=0.0)
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x, x_l, y_l, Z_2g)*nu_target_temp,np.log(h*nu_target_temp)))
+                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod(eta_space,x,flag_product)*nu_target_temp,np.log(h*nu_target_temp)))
                 else:
                     Qp_g_temp.append(0.)
             sum_Qp_g.append(trapz_log_numba(h*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
@@ -641,7 +655,7 @@ def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,
                     eta_space = np.logspace(np.log10(2.14*h_0),np.log10(eta_0_max),25)
                     nu_target_temp = eta_space*c_temp/h
                     photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x,x_l, y_l, Z_e_m)*nu_target_temp,np.log(h*nu_target_temp)))
+                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod(eta_space,x,flag_product)*nu_target_temp,np.log(h*nu_target_temp)))
                 else:
                     Qp_g_temp.append(0.)
             sum_Qp_g.append(trapz_log_numba(e_re*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
@@ -657,20 +671,17 @@ def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,
                     eta_space = np.logspace(np.log10(h_0),np.log10(eta_0_max),25)
                     nu_target_temp = eta_space*c_temp/h
                     photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x, x_l, y_l, Z_e_p)*nu_target_temp,np.log(h*nu_target_temp)))
+                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod(eta_space,x,flag_product)*nu_target_temp,np.log(h*nu_target_temp)))
                 else:
                     Qp_g_temp.append(0.)
             sum_Qp_g.append(trapz_log_numba(e_re*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
                     
-    elif flag_product == "bar_nu_e":
+    elif flag_product == "\bar_nu_e":
         sum_Qp_g = []
         g_pr_min_int = 2.14*h_0*p_re/(4.*E_nu_space[-1])
         g_pr_temp = np.logspace(np.log10(max(g_pr_min_int,g_pr[0])),np.log10(g_pr[-1]),50)
         N_pr_temp = 10**interp_log_numba(np.log10(g_pr_temp),np.log10(g_pr),np.log10(N_pr))
         N_pr_temp = np.nan_to_num(N_pr_temp, nan=0.0)
-        c_temp_l = p_re/(4.*g_pr_temp)
-        eta_0_max_l = 4.*h*nu_target[-1]*g_pr_temp/p_re
-        ln_g_pr_temp = np.log(g_pr_temp)
         for E_nu_ind in range(0,len(E_nu_space)):
             Qp_g_temp = []
             for g_ind, (c_temp, eta_0_max) in enumerate(zip(c_temp_l, eta_0_max_l)):
@@ -681,12 +692,11 @@ def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,
                     nu_target_temp = eta_space*c_temp/h
                     photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
                     photons_targ_temp = np.nan_to_num(photons_targ_temp, nan=0.0)
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x,x_l,y_l, Z_b_nu_e)*nu_target_temp,np.log(h*nu_target_temp)))
+                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod(eta_space,x,flag_product)*nu_target_temp,np.log(h*nu_target_temp)))
                 else:
                     Qp_g_temp.append(0.)                
             sum_Qp_g.append(trapz_log_numba(h*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
-    
-    elif flag_product == "bar_nu_mu":
+    else:
         sum_Qp_g = []
         for E_nu_ind in range(0,len(E_nu_space)):
             Qp_g_temp = []
@@ -698,46 +708,12 @@ def Qp_g_mod(g_el,nu_ic,N_pr,g_pr,photons_targ,nu_target,flag_product,h_0=0.313,
                     nu_target_temp = eta_space*c_temp/h
                     photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
                     photons_targ_temp = np.nan_to_num(photons_targ_temp, nan=0.0)
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x, x_l, y_l, Z_b_nu_mu)*nu_target_temp,np.log(h*nu_target_temp)))
-                else:
-                    Qp_g_temp.append(0.)                
-            sum_Qp_g.append(trapz_log_numba(h*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
-
-    elif flag_product == "nu_mu":
-        sum_Qp_g = []
-        for E_nu_ind in range(0,len(E_nu_space)):
-            Qp_g_temp = []
-            for g_ind, (c_temp, eta_0_max) in enumerate(zip(c_temp_l, eta_0_max_l)):
-                x = E_nu_space[E_nu_ind]/(g_pr_temp[g_ind]*p_re)
-                epsilon_0 = h_0*c_temp
-                if np.log10(epsilon_0/h) < np.log10(nu_target[-1]):
-                    eta_space = np.logspace(np.log10(h_0),np.log10(eta_0_max),25)
-                    nu_target_temp = eta_space*c_temp/h
-                    photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
-                    photons_targ_temp = np.nan_to_num(photons_targ_temp, nan=0.0)
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x, x_l, y_l, Z_nu_mu)*nu_target_temp,np.log(h*nu_target_temp)))
-                else:
-                    Qp_g_temp.append(0.)                
-            sum_Qp_g.append(trapz_log_numba(h*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
-    
-    elif flag_product == "nu_e":
-        sum_Qp_g = []
-        for E_nu_ind in range(0,len(E_nu_space)):
-            Qp_g_temp = []
-            for g_ind, (c_temp, eta_0_max) in enumerate(zip(c_temp_l, eta_0_max_l)):
-                x = E_nu_space[E_nu_ind]/(g_pr_temp[g_ind]*p_re)
-                epsilon_0 = h_0*c_temp
-                if np.log10(epsilon_0/h) < np.log10(nu_target[-1]):
-                    eta_space = np.logspace(np.log10(h_0),np.log10(eta_0_max),25)
-                    nu_target_temp = eta_space*c_temp/h
-                    photons_targ_temp = 10**interp_log_numba(np.log10(nu_target_temp),np.log10(nu_target),np.log10(photons_targ))
-                    photons_targ_temp = np.nan_to_num(photons_targ_temp, nan=0.0)
-                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod_numba(eta_space,x, x_l, y_l, Z_nu_e)*nu_target_temp,np.log(h*nu_target_temp)))
+                    Qp_g_temp.append(trapz_log_numba(photons_targ_temp*10**Phi_g_mod(eta_space,x,flag_product)*nu_target_temp,np.log(h*nu_target_temp)))
                 else:
                     Qp_g_temp.append(0.)                
             sum_Qp_g.append(trapz_log_numba(h*N_pr_temp*Qp_g_temp/p_re,ln_g_pr_temp))
     return(np.array(sum_Qp_g))
-    
+
 @njit(cache=True, fastmath=True)
 def q_BH_numba(g, x, g_p, R0):
     # g: scalar (logarithm)
@@ -844,7 +820,7 @@ def q_BH_numba(g, x, g_p, R0):
     return res
 
 
-@njit(parallel=True, cache=True, fastmath=True)
+@njit(cache=True, fastmath=True)
 def Q_BH_sol(g_el, g_pr, N_pr, nu_trgt, photons_trgt):
     dnde = np.zeros(len(g_el))
     ln_nu_trgt = np.log(nu_trgt)
@@ -1270,7 +1246,6 @@ def nuF_nu_obs(nu_L_nu,Dist_in_pc,delta,R0):
     return np.multiply(nu_L_nu,delta**4.)/(4.*np.pi*(Dist_in_pc*pc)**2.)
 
 #computes total photon spectrum by adding different spectral components
-@njit(cache=True, fastmath=True)
 def photons_tot(nu_syn,nu_bb,photons_syn,nu_ic,photons_IC,nu_tot,photons_bb,photons_pl,photons_user):
     return 10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_bb),np.log10(photons_bb)))+10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_syn),np.log10(photons_syn)))+10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_ic),np.log10(photons_IC)))+photons_pl+photons_user
 
