@@ -281,6 +281,13 @@ a_gg_f_syn = np.zeros(len(nu_syn) - 2)
 a_gg_f_op = np.zeros(len(nu_op) - 2)
 a_gg_f_temp = np.zeros(len(nu_tot) - 2)
 
+if gg_flag == 1.:
+    K_gg_op = f.build_a_gg_kernel(nu_op, nu_tot)
+    K_gg_syn = f.build_a_gg_kernel(nu_syn, nu_tot)
+else:
+    K_gg_op = None
+    K_gg_syn = None
+
 Spec_list = []
 
 # ---------------------------
@@ -308,6 +315,11 @@ g13_el = g_el ** (1./3.)
 g2_el = g_el ** 2.
 g13_pr = g_pr ** (1./3.)
 g2_pr = g_pr ** 2.
+
+gg_max_iter = 3
+gg_tol_dex = 1e-3
+gg_floor = 1e-300
+
 # Solution of the PDEs
 with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4,'w') as f4:
     for i in tqdm(range(int(time_end/step_alg)),desc="Progress..."):
@@ -404,7 +416,7 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             Q_pg_nu = np.zeros(len(nu_nu)-2)
 
         if pp_ee_emis_flag == 1.:
-            Q_pp_ee = np.multiply(f.Q_e_pp(g_el,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr,n_H)[1:-1],m_el*c**2.)
+            Q_pp_ee = np.multiply(f.Q_e_pp(g_el,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],m_el*c**2.)
         else:
             Q_pp_ee = np.zeros(len(g_el)-2)
             
@@ -443,54 +455,73 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             aSSA_space_op = np.zeros(len(nu_op)-2)   
             
         if pp_g_emis_flag == 1.:
-            Q_pp_g = np.multiply(f.Q_g_pp(nu_op,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr,n_H)[1:-1],h)
+            Q_pp_g = np.multiply(f.Q_g_pp(nu_op,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],h)
         else:
             Q_pp_g = np.zeros(len(nu_op)-2)
 
         if pp_nu_emis_flag == 1.:
-            Q_pp_nu = 2.*np.multiply(f.Q_nu_e_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr,n_H)[1:-1],dt)*h*V_t+2.*np.multiply(f.Q_nu_mu_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr,n_H)[1:-1],dt)*h*V_t
+            Q_pp_nu = 2.*np.multiply(f.Q_nu_e_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],dt)*h*V_t+2.*np.multiply(f.Q_nu_mu_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],dt)*h*V_t
         else:
             Q_pp_nu = np.zeros(len(nu_nu)-2)
 
-        V1 = np.zeros(len(nu_syn)-2)
-        V2 = 1.+dt*(c/Radius+dnudt_ad_syn_m-aSSA_space_syn*c+a_gg_f_syn*c)
-        V3 = -dt*dnudt_ad_syn_p
-        S_ij = photons_syn[1:-1]+4.*np.pi*(Q_Syn_el+Q_Syn_pr)*dt*V_t
-        photons_syn[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)  
+        photons_syn_old = photons_syn.copy()
+        photons_op_old = photons_op.copy()
+        photons_guess = photons.copy()
         
-        V1 = np.zeros(len(nu_op)-2)
-        V2 = 1.+dt*(c/Radius+dnudt_ad_op_m-aSSA_space_op*c+a_gg_f_op*c)
-        V3 = -dt*dnudt_ad_op_p
-        S_ij = photons_op[1:-1]+(Q_IC+Q_pg_g+Q_pp_g)*dt*V_t
+        if gg_flag == 1.:
+            n_gg_iter = gg_max_iter
+        else:
+            n_gg_iter = 1
         
-        photons_op[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
-        photons = f.photons_tot(nu_syn,nu_bb,photons_syn,nu_op,photons_op,nu_tot,dN_dVdnu_BB*f.Volume(Radius),dN_dVdnu_pl*f.Volume(Radius),dN_dVdnu_user*f.Volume(Radius))/f.Volume(Radius)  
-        photons = np.nan_to_num(photons, nan=0.0)
+        for gg_iter in range(n_gg_iter):        
+            if gg_flag == 1.:
+                a_gg_f_syn_iter = f.apply_a_gg_kernel(K_gg_syn, photons_guess)[1:-1]
+                a_gg_f_op_iter = f.apply_a_gg_kernel(K_gg_op, photons_guess)[1:-1]
+            else:
+                a_gg_f_syn_iter = np.zeros(len(nu_syn) - 2)
+                a_gg_f_op_iter = np.zeros(len(nu_op) - 2)
+        
+            V1 = np.zeros(len(nu_syn) - 2)
+            V2 = 1. + dt * (c / Radius + dnudt_ad_syn_m - aSSA_space_syn * c + a_gg_f_syn_iter * c)
+            V3 = -dt * dnudt_ad_syn_p
+            S_ij = (photons_syn_old[1:-1] + 4. * np.pi * (Q_Syn_el + Q_Syn_pr) * dt * V_t)
+            photons_syn_new = photons_syn_old.copy()
+            photons_syn_new[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)        
+
+            V1 = np.zeros(len(nu_op) - 2)        
+            V2 = 1. + dt * (c / Radius + dnudt_ad_op_m - aSSA_space_op * c + a_gg_f_op_iter * c)
+            V3 = -dt * dnudt_ad_op_p
+            S_ij = (photons_op_old[1:-1] + (Q_IC + Q_pg_g + Q_pp_g) * dt * V_t)
+            photons_op_new = photons_op_old.copy()
+            photons_op_new[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
+        
+            photons_new = (f.photons_tot(nu_syn,nu_bb,photons_syn_new+TINY,nu_op,photons_op_new+TINY,nu_tot,dN_dVdnu_BB * V_t,dN_dVdnu_pl * V_t,dN_dVdnu_user * V_t,)/ V_t)
+            photons_new = np.nan_to_num(photons_new, nan=0.0, posinf=0.0, neginf=0.0,)
+        
+            if gg_flag == 1.:
+                err = np.nanmax(np.abs(np.log10(photons_new + gg_floor) - np.log10(photons_guess + gg_floor)))
+                photons_guess = photons_new
+                if err < gg_tol_dex:
+                    break
+            else:
+                photons_guess = photons_new
+        
+        photons_syn = photons_syn_new
+        photons_op = photons_op_new
+        photons = photons_new
+        
         if gg_flag == 0.:
-            a_gg_f_op = np.zeros(len(nu_op)-2)
-            a_gg_f_syn = np.zeros(len(nu_syn)-2)
             Q_ee = np.zeros(len(g_el)-2)
         else: 
-            a_gg_f_op = np.array(f.a_gg(nu_op,nu_tot,photons)[1:-1])
-            a_gg_f_syn = np.array(f.a_gg(nu_syn,nu_tot,photons)[1:-1])
-            a_gg_f_temp = np.array(f.a_gg(nu_tot,nu_tot,photons)[1:-1])
-            if interv < 2.: 
-                photons_temp = photons*V_t
-                V1 = np.zeros(len(nu_tot)-2)
-                V2 = 1.+dt*(a_gg_f_temp*c)
-                V3 = np.zeros(len(nu_tot)-2)
-                S_ij = photons_temp[1:-1]
-                photons_temp[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)     
-                photons_temp[1:-1] = photons_temp[1:-1]/V_t
-                Q_ee = f.Q_ee_f(nu_tot,photons_temp,nu_tot,photons_temp,g_el,Radius)[1:-1]
-            else:
-                Q_ee = f.Q_ee_f(nu_tot,photons,nu_tot,photons,g_el,Radius)[1:-1]
+            Q_ee = f.Q_ee_f(nu_tot,photons,nu_tot,photons,g_el,Radius)[1:-1]  
+            
         V1 = np.zeros(len(nu_nu)-2)
         V2 = 1.+dt*(c/Radius*np.ones(len(nu_nu)-2))
         V3 = np.zeros(len(nu_nu)-2)
         S_ij = N_nu[1:-1]+Q_pp_nu+Q_pg_nu
         N_nu[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
-        interv += 1   
+        interv += 1
+        
         if day_counter < time_real:            
             day_counter = day_counter+step_alg*R0/c
 
