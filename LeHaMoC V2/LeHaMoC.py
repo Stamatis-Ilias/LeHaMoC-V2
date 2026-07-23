@@ -435,8 +435,6 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         N_el[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)    
         dN_el_dVdg_el = np.array(N_el/V_t)
         if Syn_emis_flag == 1.:
-            # Q_Syn_el = np.array([f.Q_syn_space(dN_el_dVdg_el,M_F,nu_syn[nu_ind],a_cr_el,C_syn_el,g_el) for nu_ind in range(1,len(nu_syn)-1)]) 
-            # Q_Syn_pr = np.array([f.Q_syn_space(dN_pr_dVdg_pr,M_F,nu_syn[nu_ind],a_cr_pr,C_syn_pr,g_pr) for nu_ind in range(1,len(nu_syn)-1)]) 
             Q_Syn_el = f.Q_syn_space(dN_el_dVdg_el, M_F, nu_syn, a_cr_el, C_syn_el, np.log(g_el), g13_el, g2_el)
             Q_Syn_pr = f.Q_syn_space(dN_pr_dVdg_pr, M_F, nu_syn, a_cr_pr, C_syn_pr, np.log(g_pr), g13_pr, g2_pr)
         else: 
