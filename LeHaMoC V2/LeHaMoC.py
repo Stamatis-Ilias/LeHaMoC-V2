@@ -299,9 +299,6 @@ C_syn_pr = sigmaT * c / (h * 24.0 * np.pi**2.0 * 0.8975) * (4.0 * np.pi * m_pr *
 const_el = 4.0 / 3.0 * sigmaT / (8.0 * np.pi * m_el * c)
 const_pr = const_el * (m_el / m_pr) ** 3.0
 
-comp_el = sigmaT * 10 ** L_el / (4.0 * np.pi * Radius * m_el * c**3)
-comp_pr = sigmaT * 10 ** L_pr / (4.0 * np.pi * Radius * m_pr * c**3)
-
 el_inj = f.inj_spectrum(V_R0, g_el, index_PL_min_el, index_PL_max_el, p_el1, L_el, m_el, PL_inj, g_el_br, p_el2)
 pr_inj = f.inj_spectrum(V_R0, g_pr, index_PL_min_pr, index_PL_max_pr, p_pr1, L_pr, m_pr, PL_inj, g_pr_br, p_pr2)   
 
@@ -333,8 +330,6 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         a_cr_el = 3.*q*M_F/(4.*np.pi*m_el*c)
         a_cr_pr = 3.*q*M_F/(4.*np.pi*m_pr*c)  
         
-        comp_el = sigmaT*10**L_el/(4.*np.pi*Radius*m_el*c**3) # electron compactness
-        comp_pr = sigmaT*10**L_pr/(4.*np.pi*Radius*m_pr*c**3) # proton compactness
 
         if Ad_l_flag == 1.: 
             b_ad = Vexp/Radius
@@ -493,7 +488,7 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             photons_op_new = photons_op_old.copy()
             photons_op_new[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
         
-            photons_new = (f.photons_tot(nu_syn,nu_bb,photons_syn_new+TINY,nu_op,photons_op_new+TINY,nu_tot,dN_dVdnu_BB * V_t,dN_dVdnu_pl * V_t,dN_dVdnu_user * V_t,)/ V_t)
+            photons_new = (f.photons_tot(nu_syn,nu_bb,photons_syn_new+TINY,nu_op,photons_op_new+TINY,nu_tot,dN_dVdnu_BB * V_t,dN_dVdnu_pl * V_t,dN_dVdnu_user * V_t)/ V_t)
             photons_new = np.nan_to_num(photons_new, nan=0.0, posinf=0.0, neginf=0.0,)
         
             if gg_flag == 1.:
