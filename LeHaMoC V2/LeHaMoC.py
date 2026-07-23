@@ -507,11 +507,6 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         photons_syn = photons_syn_new
         photons_op = photons_op_new
         photons = photons_new
-        
-        if gg_flag == 0.:
-            Q_ee = np.zeros(len(g_el)-2)
-        else: 
-            Q_ee = f.Q_ee_f(nu_tot,photons,nu_tot,photons,g_el,Radius)[1:-1]  
             
         V1 = np.zeros(len(nu_nu)-2)
         V2 = 1.+dt*(c/Radius*np.ones(len(nu_nu)-2))
