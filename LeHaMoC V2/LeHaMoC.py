@@ -1,6 +1,6 @@
 # This is the leptohadronic version of a radiative transfer code LeHaMoC developed by S. I. Stathopoulos 
 # in collaboration with M. Petropoulou. When using this code, make reference to the
-# following publication: Stathopoulos et al., 2023, A&A
+# following publication: Stathopoulos et al., 2023, A&A 
 
 import numpy as np
 import astropy.units as u
@@ -45,6 +45,8 @@ q = (const.e.gauss).value
 sigmaT = (const.sigma_T).cgs.value               
 eV = (u.eV).to(u.erg)   
 B_cr = 2*np.pi*m_el**2*c**3/(h*q)
+erg_to_TeV = 0.624151
+E_rp_TeV = m_pr*c**2.*erg_to_TeV
 ################################
 
 if len(sys.argv) != 1:
@@ -320,7 +322,8 @@ gg_floor = 1e-300
 # Solution of the PDEs
 with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4,'w') as f4:
     for i in tqdm(range(int(time_end/step_alg)),desc="Progress..."):
-        time_real += dt    
+        time_real += dt   
+        Radius = f.R(R0, time_real, time_init, Vexp)
         V_t = f.Volume(Radius) 
         M_F = f.B(B0,R0,Radius,m)
         if V_t > V_R0:
@@ -352,8 +355,8 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             b_syn_pr = const_pr*M_F**2.
             dgdt_Syn_el_m = b_syn_el*np.divide(np.power(g_el_mp[0:-1],2)-1.,dg_el)
             dgdt_Syn_el_p = b_syn_el*np.divide(np.power(g_el_mp[1:],2)-1.,dg_el)
-            dgdt_Syn_pr_m = b_syn_pr*np.divide(np.power((g_pr_mp[0:-1]-1.),2.),dg_pr)
-            dgdt_Syn_pr_p = b_syn_pr*np.divide(np.power((g_pr_mp[1:]-1.),2.),dg_pr)
+            dgdt_Syn_pr_m = b_syn_pr*np.divide(np.power(g_pr_mp[0:-1],2)-1.,dg_pr)
+            dgdt_Syn_pr_p = b_syn_pr*np.divide(np.power(g_pr_mp[1:],2)-1.,dg_pr)
         else :
             dgdt_Syn_el_m = dgdt_Syn_el_p = np.zeros(len(g_el)-2)  
             dgdt_Syn_pr_m = dgdt_Syn_pr_p = np.zeros(len(g_pr)-2)  
@@ -361,8 +364,8 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         if IC_l_flag == 1.:
             U_ph = f.U_ph_KN(g_el,nu_tot,photons)
             b_Com_el = 4./3.*sigmaT*np.multiply(c,U_ph)/(m_el*c**2.)
-            dgdt_op_el_m = b_Com_el[1:-1]*np.divide(np.power((g_el_mp[0:-1]-1.),2.),dg_el)
-            dgdt_op_el_p = b_Com_el[2:]*np.divide(np.power((g_el_mp[1:]-1.),2.),dg_el)
+            dgdt_op_el_m = b_Com_el[1:-1]*np.divide(np.power(g_el_mp[0:-1],2.)-1.,dg_el)
+            dgdt_op_el_p = b_Com_el[2:]*np.divide(np.power(g_el_mp[1:],2.)-1.,dg_el)
         else:
             dgdt_op_el_m = dgdt_op_el_p = np.zeros(len(g_el)-2)    
             
@@ -378,17 +381,15 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
         else:
             dgdt_pg_BH_m = dgdt_pg_BH_p = np.zeros(len(g_pr)-2)
            
-        if pp_l_flag == 1.:
-            dgdt_pp_pi_m = []
-            dgdt_pp_pi_p = []  
-            dgdt_pp_pi_m=np.divide(0.65*c*n_H*f.cs_pp_inel(g_pr_mp[0:-1]*m_pr*c**2.*0.624151-m_pr*c**2.*0.624151)/(m_pr*c**2.),dg_pr)
-            dgdt_pp_pi_p=np.divide(0.65*c*n_H*f.cs_pp_inel(g_pr_mp[1:]*m_pr*c**2.*0.624151-m_pr*c**2.*0.624151)/(m_pr*c**2.),dg_pr)        
+        if pp_l_flag == 1.: 
+            dgdt_pp_pi_m=np.divide(0.65*c*n_H*f.cs_pp_inel(g_pr_mp[0:-1]*m_pr*c**2.*erg_to_TeV)*(g_pr_mp[0:-1]-1.),dg_pr)
+            dgdt_pp_pi_p=np.divide(0.65*c*n_H*f.cs_pp_inel(g_pr_mp[1:]*m_pr*c**2.*erg_to_TeV)*(g_pr_mp[1:]-1.),dg_pr)         
         else:
             dgdt_pp_pi_m = dgdt_pp_pi_p = np.zeros(len(g_pr)-2)
 
         V1 = np.zeros(len(g_pr)-2)
-        V2 = 1.+dt*(c/Radius*esc_flag_pr+dgdt_Syn_pr_m+dgdt_pg_pi_m+dgdt_pg_BH_m+dgdt_pp_pi_m)
-        V3 = -dt*(dgdt_Syn_pr_p+dgdt_pg_pi_p+dgdt_pg_BH_p+dgdt_pp_pi_p)
+        V2 = 1.+dt*(c/Radius*esc_flag_pr+dgdt_ad_pr_m+dgdt_Syn_pr_m+dgdt_pg_pi_m+dgdt_pg_BH_m+dgdt_pp_pi_m)
+        V3 = -dt*(dgdt_Syn_pr_p+dgdt_ad_pr_p+dgdt_pg_pi_p+dgdt_pg_BH_p+dgdt_pp_pi_p)
         S_ij = N_pr[1:-1]+np.multiply(pr_inj[1:-1],dt)*V_t
         N_pr[1:-1] = f.thomas_numba(V1, V2, V3, S_ij)
         dN_pr_dVdg_pr = np.array(N_pr/V_t)
@@ -399,10 +400,10 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             Q_pg_BH = np.zeros(len(g_el)-2)
         
         if pg_pi_emis_flag == 1.:
-            Q_pg_pi = np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,np.array(photons),nu_tot,"e+")[1:-1],nan=0.0)+np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,np.array(photons),nu_tot,"e-")[1:-1],nan=0.)
+            Q_pg_pi = np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,photons,nu_tot,"e+")[1:-1],nan=0.0)+np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,photons,nu_tot,"e-")[1:-1],nan=0.)
             Q_pg_g = np.nan_to_num(f.Qp_g_mod(g_el,nu_op,dN_pr_dVdg_pr,g_pr,photons,nu_tot,"2_g")[1:-1],nan=0.0) 
             if neutrino_flag == 1.:
-                Q_pg_nu = np.multiply(f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"\bar_nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_e")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"\bar_nu_e"),dt)[1:-1]    
+                Q_pg_nu = np.multiply(f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"bar_nu_mu")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"nu_e")+f.Qp_g_mod(g_el,nu_op,N_pr,g_pr,photons,nu_tot,"bar_nu_e"),dt)[1:-1]    
             else:
                 Q_pg_nu = np.zeros(len(nu_nu)-2)
         else:
@@ -411,7 +412,7 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             Q_pg_nu = np.zeros(len(nu_nu)-2)
 
         if pp_ee_emis_flag == 1.:
-            Q_pp_ee = np.multiply(f.Q_e_pp(g_el,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],m_el*c**2.)
+            Q_pp_ee = np.multiply(f.Q_e_pp(g_el,g_pr,dN_pr_dVdg_pr/E_rp_TeV,p_pr1,n_H)[1:-1],m_el*c**2.*erg_to_TeV)
         else:
             Q_pp_ee = np.zeros(len(g_el)-2)
             
@@ -448,12 +449,12 @@ with open(out1,'w') as f1, open(out2,'w') as f2, open(out3,'w') as f3, open(out4
             aSSA_space_op = np.zeros(len(nu_op)-2)   
             
         if pp_g_emis_flag == 1.:
-            Q_pp_g = np.multiply(f.Q_g_pp(nu_op,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],h)
+            Q_pp_g = np.multiply(f.Q_g_pp(nu_op,g_pr,dN_pr_dVdg_pr/E_rp_TeV,p_pr1,n_H)[1:-1],h*erg_to_TeV)
         else:
             Q_pp_g = np.zeros(len(nu_op)-2)
 
         if pp_nu_emis_flag == 1.:
-            Q_pp_nu = 2.*np.multiply(f.Q_nu_e_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],dt)*h*V_t+2.*np.multiply(f.Q_nu_mu_pp(nu_nu,g_pr,dN_pr_dVdg_pr/(m_pr*c**2.*0.624151),p_pr1,n_H)[1:-1],dt)*h*V_t
+            Q_pp_nu = 2.*np.multiply(f.Q_nu_e_pp(nu_nu,g_pr,dN_pr_dVdg_pr/E_rp_TeV,p_pr1,n_H)[1:-1],dt)*h*erg_to_TeV*V_t+2.*np.multiply(f.Q_nu_mu_pp(nu_nu,g_pr,dN_pr_dVdg_pr/E_rp_TeV,p_pr1,n_H)[1:-1],dt)*h*erg_to_TeV*V_t
         else:
             Q_pp_nu = np.zeros(len(nu_nu)-2)
 
