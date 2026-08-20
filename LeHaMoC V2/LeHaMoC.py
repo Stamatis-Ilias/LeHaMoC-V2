@@ -49,20 +49,26 @@ erg_to_TeV = 0.624151
 E_rp_TeV = m_pr*c**2.*erg_to_TeV
 ################################
 
-if len(sys.argv) != 1:
-    print('incorrect parameters passed')
-    print('try something like this')
-    print('python LeHaMoC.py Parameters.txt out1')
+if len(sys.argv) != 3:
+    print("incorrect parameters passed")
+    print("try something like this")
+    print("python LeHaMoC.py Parameters.txt _caseA")
     quit()
 
-#Define output files
-out1 = "Pairs_Distribution.txt"
-out2 = "Photons_Distribution.txt"
-out3 = "Protons_Distribution.txt"
-out4 = "Neutrinos_Distribution.txt"
+# Input parameter file
+fileName = sys.argv[1]
+
+# Suffix for output files
+out_s = sys.argv[2]
+
+# Define output files
+out1 = "Pairs_Distribution" + out_s + ".txt"
+out2 = "Photons_Distribution" + out_s + ".txt"
+out3 = "Protons_Distribution" + out_s + ".txt"
+out4 = "Neutrinos_Distribution" + out_s + ".txt"
+
 TINY = 1e-260
 
-fileName = "Parameters.txt"
 fileObj = open(fileName)
 params = {}
 for line in fileObj:
