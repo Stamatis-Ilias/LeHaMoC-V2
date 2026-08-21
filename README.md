@@ -1,4 +1,7 @@
 # LeHaMoC: Leptonic-Hadronic Modeling Code for High-Energy Astrophysical Sources
+⚠️ Development version — Beta
+
+This repository contains the actively developed version of LeHaMoC. Although the core numerical framework has been validated and published, new features included here may still be under testing and validation. The code interface and numerical implementation may therefore evolve between releases.
 
 LeHaMoC is a leptohadronic modeling code designed for simulating high-energy astrophysical sources. It simulates the behavior of relativistic pairs protons interacting with magnetic fields and photons in a spherical region. The physical processes that are included are:
 
