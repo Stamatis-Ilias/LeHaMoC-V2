@@ -6,6 +6,7 @@ import pandas as pd
 from scipy import stats
 from numba import njit, prange
 import pickle
+import sys
 
 #######################
 #tables# 
@@ -72,14 +73,20 @@ Cross_Section_pg_C_S = Cross_Section_pg.C_S[1:].values
 kp_pg_e = kp_pg.e.values * 1e9 * eV
 kp_pg_k = kp_pg.k.values
 #Read parameters file
-fileName = "Parameters.txt"
+# Use the same parameter file passed to LeHaMoC.py
+fileName = sys.argv[1]
+
 fileObj = open(fileName)
+
 params = {}
+
 for line in fileObj:
-    line=line.strip()
+    line = line.strip()
     key_value = line.split("=")
     params[key_value[0].strip()] = float(key_value[1].strip())
-    
+
+fileObj.close()
+
 time_init = float(params['time_init'])     # initial time in code units ~ R0/c
 time_end = float(params['time_end'])       # final time in code units ~ R0/c
 step_alg = float(params['step_alg'])       # step size for the PDE solver ~ R0/c
