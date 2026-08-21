@@ -185,4 +185,4 @@ To configure the LeHaMoC simulation, you can customize various parameters in the
 57. **User_ph**: External user photon field flag (1 to include, 0 to exclude). If included, provide a .txt file named 'Photons_spec_user.txt' with columns (nu[Hz],dN/dVdnu[cm^{-3}Hz^{-1}]).
 
 Run the LeHaMoC.py code using a compatible Python interpreter. Make sure to have all necessary dependencies installed. Example:
-python LeHaMoC.py Parameters_Test.txt
+python LeHaMoC.py Parameters_Test.txt out
