@@ -86,7 +86,7 @@ for line in fileObj:
     params[key_value[0].strip()] = float(key_value[1].strip())
 
 fileObj.close()
-
+ 
 time_init = float(params['time_init'])     # initial time in code units ~ R0/c
 time_end = float(params['time_end'])       # final time in code units ~ R0/c
 step_alg = float(params['step_alg'])       # step size for the PDE solver ~ R0/c
@@ -969,7 +969,7 @@ def q_pi(E_pi,p_pr,species,N_pr_TeV,n_H,g_pr):
         elif p_pr == 3.:
             eta = 0.91
         else:
-            eta = interp_log_numba(p_pr,eta_list,p_pr_list)
+           eta = interp_log_numba(np.array([p_pr], dtype=np.float64), eta_list, p_pr_list)[0]
     else:
         if p_pr == 2.:
             eta = 0.77
@@ -978,9 +978,8 @@ def q_pi(E_pi,p_pr,species,N_pr_TeV,n_H,g_pr):
         elif p_pr == 3.:
             eta = 0.67        
         else:
-            eta = interp_log_numba(p_pr,eta_list,p_pr_list)
-            
-    return eta*c*n_H/K_pi*cs_pp_inel(x_m_pr+E_pi/K_pi)*10.**(interp_log_numba(np.log10(x_m_pr+E_pi/K_pi),np.log10(g_pr*x_m_pr),np.log10(N_pr_TeV)))
+            eta = interp_log_numba(np.array([p_pr], dtype=np.float64), eta_list, p_pr_list)[0]
+    return eta*c*n_H/K_pi*cs_pp_inel(x_m_pr+E_pi/K_pi)*interp_log_numba(np.log10(x_m_pr+E_pi/K_pi),np.log10(g_pr*x_m_pr),N_pr_TeV)
 
 
 def g_nu_mu(x,r):
@@ -1043,6 +1042,7 @@ def Q_pp_sub2(x_space,species,E_p,E,p_pr,N_pr_TeV,n_H,g_pr):
         beta_e = 1./(0.201+0.062*L+0.00042*L**2.)**(1./4.)
         k_e = (0.279+0.141*L+0.0172*L**2.)/(0.3+(2.3+L)**2.)
         F_e =  B_e*(1.+k_e*(np.log(x_space))**2.)**3./(x_space*(1.+0.3/x_space**beta_e))*(-np.log(x_space))**5.
+            
         return np.trapz(c*n_H*cs_pp_inel(E/x_space)*10.**np.interp(np.log10((E/x_space)),np.log10(g_pr*x_m_pr),np.log10(N_pr_TeV))*F_e,np.log(x_space))
 
 
@@ -1159,6 +1159,7 @@ def Q_e_pp(g_el,g_pr,N_pr_TeV,p_pr,n_H):
         else:
             Q_pp_temp_e += 0.
         Q_pp_e_list.append(Q_pp_temp_e)
+    Q_pp_e_list = np.nan_to_num(Q_pp_e_list, nan=0.0)
     slope_e, intercept_e, r_value_e, p_value_e, std_err_e = stats.linregress(np.log10(E_species[norm_ind:norm_ind+2]),np.log10(Q_pp_e_list[norm_ind:norm_ind+2]))
     y_fit_e = 10**(slope_e*np.log10(E_species[norm_ind-1])+intercept_e)
     norm_e = y_fit_e/Q_pp_e_list[norm_ind-1]
@@ -1198,10 +1199,12 @@ def Q_g_pp(nu_ic,g_pr,N_pr_TeV,p_pr,n_H):
         else:
             Q_pp_temp_g += 0.
         Q_pp_g_list.append(Q_pp_temp_g)
+    Q_pp_g_list = np.nan_to_num(Q_pp_g_list, nan=0.0)
     slope_g, intercept_g, r_value_g, p_value_g, std_err_g = stats.linregress(np.log10(E_species[norm_ind:norm_ind+2]),np.log10(Q_pp_g_list[norm_ind:norm_ind+2]))
     y_fit_g = 10**(slope_g*np.log10(E_species[norm_ind-1])+intercept_g)
     norm_g = y_fit_g/Q_pp_g_list[norm_ind-1]
     Q_pp_g_list[:norm_ind] = np.multiply(norm_g,Q_pp_g_list[:norm_ind])
+    Q_pp_g_list[np.isnan(Q_pp_g_list) | (Q_pp_g_list < 0)] = 0.0
     return Q_pp_g_list
 
 def Q_nu_mu_pp(nu_nu,g_pr,N_pr_TeV,p_pr,n_H):
@@ -1295,7 +1298,6 @@ def nuF_nu_obs(nu_L_nu,Dist_in_pc,delta,R0):
 def photons_tot(nu_syn,nu_bb,photons_syn,nu_ic,photons_IC,nu_tot,photons_bb,photons_pl,photons_user):
     Photons =  10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_bb),np.log10(photons_bb)))+10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_syn),np.log10(photons_syn)))+10**(interp_log_numba(np.log10(nu_tot),np.log10(nu_ic),np.log10(photons_IC)))+photons_pl+photons_user
     return np.nan_to_num(Photons, nan=0.0)
-
 
 @njit(cache=True, fastmath=True)
 def thomas_numba(a, b, c, d):
